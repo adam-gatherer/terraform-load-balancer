@@ -1,5 +1,5 @@
 # Load Balancer
-resource "aws_lb" "albtf-lb" {
+resource "aws_lb" "albtf_lb" {
   name                  = "albtf-lb-asg"
   internal              = false
   load_balancer_type    = "application"
