@@ -12,7 +12,7 @@ terraform {
 
 provider "aws" {
   region                    = "us-east-1"
-  shared_config_files       = ["~/.aws/config"]
-  shared_credentials_files  = ["~/.aws/credentials"]
+  shared_config_files       = ["/Path/to/.aws/config"] # Example path whilst I figure out how to do this correctly
+  shared_credentials_files  = ["/Path/to/.aws/credentials"] # As above
   profile                   = "PROFILE"
 }
