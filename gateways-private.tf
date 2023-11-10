@@ -1,8 +1,9 @@
 # Elastic IP for NAT Gateway
 resource "aws_eip" "albtf_eip" {
   depends_on    = [ aws_internet_gateway.albtf_gw ]
-  #vpc           = true
-  domain = "vpc"
+  vpc           = true
+  # ^ looks like this is depreceated, unsure how to continue
+  #domain = "vpc"
   tags = {
     Name = "albtf_EIP_for_NAT"
   }
