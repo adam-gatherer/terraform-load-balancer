@@ -11,7 +11,7 @@ resource "aws_subnet" "albtf_subnet_1a" {
   vpc_id                    = aws_vpc.albtf_main.id
   cidr_block                = "10.0.0.0/27"
   map_public_ip_on_launch   = true
-  availability_zone         = "us-east1a"
+  availability_zone         = "us-east-1a"
 }
 
 # Public Subnet 2
