@@ -3,7 +3,7 @@
 # Launch Template
 resource "aws_launch_template" "albtf_ec2_launch_templ" {
   name_prefix   = "albtf_ec2_launch_templ"
-  image_id      = "ami-0a1f6cc8163bdcc75"
+  image_id      = "ami-010f8b02680f80998"
   instance_type = "t2.micro"
   user_data     = filebase64("user_data.sh")
 
