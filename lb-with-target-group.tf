@@ -3,7 +3,7 @@ resource "aws_lb" "albtf-lb-aws_nat_gateway" {
   name                  = "albtf-lb-asg"
   internal              = false
   load_balancer_type    = "application"
-  security_groups = [ aws_security_group.albf-sg-for-elb.id ]
+  security_groups = [ aws_security_group.albtf_sg_for_elb.id ]
   subnets = [aws_subnet.aws_subnet.albtf_subnet_1a.id, aws_subnet.albtf_subnet_1b.id]
   depends_on = [ aws_internet_gateway.albtf_gw ]
 }
