@@ -3,7 +3,7 @@ name : Format Checking
 on:
   push:
     branches:
-      -master
+      -main
 
 jobs:
     format:
@@ -13,5 +13,5 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v3
         - name: 'Bash script'
-          uses: actions/checkout@master
+          uses: actions/checkout@main
         - run: terraform fmt --recrsive --check --diff
