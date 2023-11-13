@@ -3,7 +3,7 @@ name : Format Checking
 on:
   push:
     branches:
-      -main
+      - main
 
 jobs:
   format:
