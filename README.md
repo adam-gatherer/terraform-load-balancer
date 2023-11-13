@@ -1,7 +1,9 @@
 # Terraform Load Balancer
-### A simple project to learn AWS automation with Terraform.
 
 ![](https://img.shields.io/badge/Amazon_AWS-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white) ![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=for-the-badge&logo=terraform&logoColor=white) ![Shell Script](https://img.shields.io/badge/shell_script-%23121011.svg?style=for-the-badge&logo=gnu-bash&logoColor=white)
+
+### A simple project to learn AWS automation with Terraform.
+
 
 ## About
 
