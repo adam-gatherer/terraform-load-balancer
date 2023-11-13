@@ -8,10 +8,16 @@ on:
 jobs:
   format:
     runs-on: ubuntu-latest
-    #name: Run format checking against tf files
+    name: Run format checking against tf files
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v2
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+    - name: Terraform Init
+      run: terraform init
     - name: Terraformat
-      uses: actions/checkout@master
-    - run: terraform fmt --recrsive --check --diff
+      run: terraform fmt --recursive --check --diff
