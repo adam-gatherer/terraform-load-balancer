@@ -15,12 +15,12 @@ resource "aws_route_table" "albtf_rt_public" {
 
 # Associate Subnet 1a with Route Table
 resource "aws_route_table_association" "albtf_rt1" {
-  subnet_id         = aws_subnet.albtf_subnet_1a.id
-  route_table_id    = aws_route_table.albtf_rt_public.id
+  subnet_id      = aws_subnet.albtf_subnet_1a.id
+  route_table_id = aws_route_table.albtf_rt_public.id
 }
 
 # Associate Subnet 1b with Route Table
 resource "aws_route_table_association" "albtf_rt2" {
-  subnet_id         = aws_subnet.albtf_subnet_1b.id
-  route_table_id    = aws_route_table.albtf_rt_public.id
+  subnet_id      = aws_subnet.albtf_subnet_1b.id
+  route_table_id = aws_route_table.albtf_rt_public.id
 }

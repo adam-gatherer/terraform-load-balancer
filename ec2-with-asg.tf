@@ -9,8 +9,8 @@ resource "aws_launch_template" "albtf_ec2_launch_templ" {
 
   network_interfaces {
     associate_public_ip_address = false
-    subnet_id = aws_subnet.albtf_subnet_2.id
-    security_groups = [aws_security_group.albtf_sg_for_ec2.id]
+    subnet_id                   = aws_subnet.albtf_subnet_2.id
+    security_groups             = [aws_security_group.albtf_sg_for_ec2.id]
   }
   tag_specifications {
     resource_type = "instance"
@@ -22,11 +22,11 @@ resource "aws_launch_template" "albtf_ec2_launch_templ" {
 
 # Auto-Scaling Group
 resource "aws_autoscaling_group" "albtf_asg" {
-  
+
   # Number of instances
-  desired_capacity  = 1
-  max_size          = 1
-  min_size          = 1
+  desired_capacity = 1
+  max_size         = 1
+  min_size         = 1
 
   # Connect to Target Group
   target_group_arns = [aws_lb_target_group.albtf_alb_tg.arn]
