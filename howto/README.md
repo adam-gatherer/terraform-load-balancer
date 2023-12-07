@@ -40,7 +40,7 @@ terraform {
 }
 ```
 
-The provider will need configured to use the region you're going to deploy the project in. If you have set up the AWS CLI with your access keys then Terraform should pick these up. Otherwise these can be specified here:
+The provider will need configured to use the region in which you're going to deploy the project. If you have set up the AWS CLI with your access keys then Terraform should pick these up. Otherwise these can be specified here:
 
 ```hcl
 provider "aws" {
