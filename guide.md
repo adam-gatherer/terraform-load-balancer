@@ -1,5 +1,7 @@
 # How It's Made
 
+### About
+
 This guide assumes you have already [installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.htm) the AWS CLI and have [Terraform installed on your computer](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli). Throughout the guide are code snippets from the files in this project. To keep you on your toes they require you to input your resource names etc. No brainless copy/paste allowed.
 
 ---
@@ -56,7 +58,7 @@ terraform {
     backend "s3" {
       bucket = "<your-bucket-here>"
       region = "<your-region-here>"
-      key = "path/to/directory"
+      key    = "path/to/directory"
     }
 }
 ```
@@ -65,7 +67,7 @@ With your state file safely locked away from prying eyes, go ahead and run `terr
 
 ---
 
-### 2. Configuring The Network
+### 2. Configuring The VPC & Subnets
 
 The project requires a VPC with two public subnets and one private subnet. This is covered in the "Architecture" section of the repo's [readme](./README.md).
 
@@ -75,18 +77,63 @@ As this project involves several moving parts it's best to keep things organised
 resource "aws_vpc" "<vpc-name-here>" {
   cidr_block = "10.0.0.0/23"
   tags = {
-    Name = "albtf-vpc"
+    Name = "<vpc-name-here>"
   }
 }
 ```
 I've given it a nice big /23 subnet, but for production environments you'll have to consider how many addresses you'll actually need.
 
-Next, add in the subnet code blocks for the public subnets:
+Next, add in the subnet code block for the first public subnet:
 
 ```hcl
-resource "aws_subnet" "albtf_subnet_1a" {
+resource "aws_subnet" "<subnet1-name-here>" {
   vpc_id                  = aws_vpc.<vpc-name-here>.id
   cidr_block              = "10.0.0.0/27"
   map_public_ip_on_launch = true
-  availability_zone       = "us-east-1a"
-}```
+  availability_zone       = "<your-region-here>"
+}
+```
+
+Note that the subnet size is smaller (this is a subnet of the VPC subnet) and that `map_public_ip_on_launch` is set to `true` as this subnet is to be public. Add the second subnet code block changing the details where appropriate. See if you can figure it out on your own using your networking knowledge.
+
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+The second subnet starts after the end of the first subnet. The mask is a /27 which gives us 32 addresses. Starting at address 0, the next subnet begins at 10.0.0.32. The subnet name is different to the first subnet and `map_public_ip_on_launch` is set to `true`.
+```hcl
+resource "aws_subnet" "<subnet2-name-here>" {
+  vpc_id                  = aws_vpc.<vpc-name-here>.id
+  cidr_block              = "10.0.0.32/27"
+  map_public_ip_on_launch = true
+  availability_zone       = "<your-region-here>"
+}
+```
+
+Hopefull you're just here checking your work, if not then never mind champ you'll get it next time. I believe in you.
+</details>
+
+Finally, add the private subnet code block. Note `map_public_ip_on_launch` is set to `false` this time. Why might that be?
+
+```hcl
+resource "aws_subnet" "<subnet3-name-here>" {
+  vpc_id                  = aws_vpc.<vpc-name-here>.id
+  cidr_block              = "10.0.1.0/27"
+  map_public_ip_on_launch = false
+  availability_zone       = "<your-region-here>"
+}
+```
+---
+
+### 3. NAT Gateway & Route Tables
+
+I've split this part into two files, `gateways-private.tf` and `gateways-public.tf`. Let's start with setting up the public gateway. This will allow the load balancer to communicate on the public internet so users can access the services and resources behind it.
+
+First define the Internet Gateway and place it in the VPC we created in the previous step:
+
+```hcl
+resource "aws_internet_gateway" "albtf_gw" {
+  vpc_id = aws_vpc.<vpc-name-here>.id
+}
+```
+
+Now add in the code block for creating the route table. This requires   

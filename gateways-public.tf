@@ -6,7 +6,6 @@ resource "aws_internet_gateway" "albtf_gw" {
 # Route Table - Public Gateway
 resource "aws_route_table" "albtf_rt_public" {
   vpc_id = aws_vpc.albtf_main.id
-
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.albtf_gw.id
