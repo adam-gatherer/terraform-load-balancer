@@ -19,4 +19,4 @@ By creating this project I have learned the common layout of Terraform code and 
 
 The Elastic Load Balancer (ELB) is used to spread traffic across multiple servers to decrease the workload on any one server to improve performance and availability. The Auto-Scaling Group (ASG) creates a number of EC2 instances to meet the demand give to it by the ELB. This can increase or decrease to make sure demand is met without over-provisioning resources.
 
-The project sits in its own VPC with a public subnet for the ELB and a  
+The project sits in its own VPC with a public subnet. This section of the readme is incomplete.
