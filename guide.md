@@ -5,7 +5,7 @@
 This guide assumes you have already [installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.htm) the AWS CLI and have [Terraform installed on your computer](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli). Throughout the guide are code snippets from the files in this project. To keep you on your toes they require you to input your resource names etc. No brainless copy/paste allowed.
 
 ---
-### 0. Prerequisite Knowledge
+### 0 - Prerequisite Knowledge
 
 - Networking
     - [Public/private networking](https://simple.wikipedia.org/wiki/IP_address)
@@ -25,7 +25,7 @@ This guide assumes you have already [installed](https://docs.aws.amazon.com/cli/
 
 ---
 
-### 1. Project Setup
+### 1 - Project Setup
 
 After creating the project's root directory create the `main.tf` file and add the provider for AWS:
 
@@ -67,7 +67,7 @@ With your state file safely locked away from prying eyes, go ahead and run `terr
 
 ---
 
-### 2. Configuring The VPC & Subnets
+### 2 - Configuring The VPC & Subnets
 
 The project requires a VPC with two public subnets and one private subnet. This is covered in the "Architecture" section of the repo's [readme](./README.md).
 
@@ -124,16 +124,53 @@ resource "aws_subnet" "<subnet3-name-here>" {
 ```
 ---
 
-### 3. NAT Gateway & Route Tables
+### 3 - NAT Gateway & Route Tables
 
 I've split this part into two files, `gateways-private.tf` and `gateways-public.tf`. Let's start with setting up the public gateway. This will allow the load balancer to communicate on the public internet so users can access the services and resources behind it.
+
+#### 3.1 - Public Gateway
 
 First define the Internet Gateway and place it in the VPC we created in the previous step:
 
 ```hcl
-resource "aws_internet_gateway" "albtf_gw" {
+resource "aws_internet_gateway" "<gw1-name-here>" {
   vpc_id = aws_vpc.<vpc-name-here>.id
 }
 ```
 
-Now add in the code block for creating the route table. This requires   
+Now add in the code block for creating the route table. This requires the VPC ID, the route(s) it will hold, and the ID of the gateway it will sit on.
+
+```hcl
+resource "aws_route_table" "<rt1-name-here>" {
+  vpc_id = aws_vpc.<vpc-name-here>.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.<gw1-name-here>.id
+  }
+}```
+
+The gateway and route table are looking very nice but won't do anything until the table is attached to a subnet. The following code block associates the route table to our first public subnet:
+
+```hcl
+resource "aws_route_table_association" "<rta1-name-here>" {
+  subnet_id      = aws_subnet.<subnet1-name-here>.id
+  route_table_id = aws_route_table.<rt1-name-here>.id
+}
+```
+
+As before, see if you can figure out how to repeat this for our second public subnet.
+
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+```hcl
+resource "aws_route_table_association" "<rta2-name-here>" {
+  subnet_id      = aws_subnet.<subnet2-name-here>.id
+  route_table_id = aws_route_table.<rt1-name-here>.id
+}
+```
+</details>
+
+#### 3.2 - Private Gateway
+
+Pretty much the same as before, but with a few differences.
