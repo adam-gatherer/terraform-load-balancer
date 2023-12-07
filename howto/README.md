@@ -69,7 +69,7 @@ With your state file safely locked away from prying eyes, go ahead and run `terr
 
 ### 2 - Configuring The VPC & Subnets
 
-The project requires a VPC with two public subnets and one private subnet. This is covered in the "Architecture" section of the repo's [readme](./README.md).
+The project requires a VPC with two public subnets and one private subnet. This is covered in the "Architecture" section of the repo's [readme](../README.md).
 
 As this project involves several moving parts it's best to keep things organised. This is best done by having separate `.tf` files for each aspect. Create the `vpc-with-subnets.tf` file and add the block for the first subnet.
 
