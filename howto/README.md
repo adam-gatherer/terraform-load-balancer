@@ -130,11 +130,11 @@ resource "aws_subnet" "<subnet3-name-here>" {
 
 ### 3 - NAT Gateway & Route Tables
 
-I've split this part into two files, `gateways-private.tf` and `gateways-public.tf`. Let's start with setting up the public gateway. This will allow the load balancer to communicate on the public internet so users can access the services and resources behind it.
+I've split this part into two files, `gateways-public.tf` and `gateways-private.tf`. Let's start with setting up the public gateway. This will allow the load balancer to communicate on the public internet so users can access the services and resources behind it.
 
 #### 3.1 - Public Gateway
 
-First define the Internet Gateway and place it in the VPC we created in the previous step:
+Create `gateways-public.tf`, define the Internet Gateway, and place it in the VPC we created in the previous step:
 
 ```hcl
 resource "aws_internet_gateway" "<gw1-name-here>" {
@@ -180,7 +180,7 @@ resource "aws_route_table_association" "<rta2-name-here>" {
 
 Similar to the public gateway but set up to only allow requests from the load balancer to reach the EC2 instances whilst allowing all traffic from them to pass out. This is done with a NAT gateway. The gateway sits between the public subnet with internet access (created in the previous step) and the private subnet.
 
-To access the internet, the gateway will need an elastic IP:
+To access the internet, the gateway will need an elastic IP. Create `gateways-private.tf` and add the EIP block:
 
 ```hcl
 resource "aws_eip" "<eip-name-here>" {
@@ -238,7 +238,7 @@ As before, we create the route table association resource then specify that our 
 
 ### 4 - Load Balancer
 
-The load balancer will balance traffic between all targets in the target group. Because we're balancing traffic for specific port numbers we'll use an application laod balancer. Start by setting up the LB itself:
+The load balancer (LB) will balance traffic between all targets in the target group. Because we're balancing traffic for specific port numbers we'll use an application laod balancer. Start by setting up `load-balancer.tf`:
 
 ```hcl
 resource "aws_lb" "<lb-name-here>" {
@@ -287,4 +287,148 @@ Port 80 is used by the HTTP protocol. You should know this already if you're goi
 ---
 
 ### 5 - Auto Scaling
+#### 5.1 - ASG & Launch Template
 
+In this step we'll create an auto scaling group (ASG) to create the EC2 instances. To configure the EC2s we'll use a launch template.
+
+Starting with the ASG we give it a `min_size` to specify the number of EC2s for periods of low demand, `max_size` to give the maximum number of EC2s to provision, and the `desired_capacity` specifies the ideal number of EC2s to aim for. Be careful, as `max_size` can and will bankrupt you if you set it above your budget. This guide assumes you're using the free tier so we'll keep it low.
+
+Create `asg-ec2.tf` and create the ASG:
+
+```hcl
+resource "aws_autoscaling_group" "<asg-name-here>" {
+  max_size         = 1
+  min_size         = 1
+  desired_capacity = 1
+  target_group_arns = [aws_lb_target_group.<tg-name-here>.arn]
+  vpc_zone_identifier = [
+    aws_subnet.<subnet3-name-here>.id
+  ]
+  launch_template {
+    id      = aws_launch_template.<ltp-name-here>.id
+    version = "$Latest"
+  }
+}
+```
+
+Note the reference to the target group we created earlier, the subnet we're putting the ASG in (private or public?), and the launch template. Let's create that launch template now:
+
+```hcl
+resource "aws_launch_template" "<ltp-name-here>" {
+  name_prefix   = "<ltp-name-here>"
+  image_id      = "<ami-id-here>"
+  instance_type = "t2.micro"
+  user_data     = filebase64("user_data.sh")
+
+```
+To keep it low cost/free we're using t2 micro EC2 instances. The `name_prefix` will be prepended to the instance name. For the `image_id` you need to use an Amazon Machine Image ID number from the region in which the EC2 instances will be deployed. For this project I'd recommend finding the AMI for Amazon Linux 2 in your region. We'll come back to the `user_data` later, but for now just know that this will be loaded when the EC2 instance is created.
+
+The rest of the resource block contains the network interface information and a tag for organisation. The network interface has to be assigned to the subnet in which we're putting the EC2 instances (now is that a public or private subnet?) and the security group will be created later.
+
+```hcl
+  network_interfaces {
+    associate_public_ip_address = false
+    subnet_id                   = aws_subnet.<subnet3-name-here>.id
+    security_groups             = [aws_security_group.<ec2sg-name-here>.id]
+  }
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "<instance-name>"
+    }
+  }
+}
+```
+#### 5.2 - User Data
+
+The `user_data` referenced should be in the same directory as the `.tf` files. It's a bash script that will run on the EC2 instances when they're created. With this project we're just running a web server for demonstration purposes, so in production this user data will likely be more interesting.
+
+Create `user_data.sh` and fill it with the following:
+
+```bash
+#!/bin/bash
+sudo yum update -y
+sudo yum install -y httpd
+sudo systemctl start httpd
+sudo systemctl enable httpd
+echo "<h1>Ahoy there skipper, welcome to $(hostname -f)<h1>" > /var/www/html/index.html
+```
+
+If you're planning on becoming a cloud engineer then you should be able to recognise what this script does before starting this guide. But if you're really stuck...
+
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+The first two lines update the system packages and install a web server.
+
+- `yum` is the package manager used in Amazon Linux 2
+- `yum update` upgrades the installed packages to the latest versions
+- `yum install` installs a new software package
+- `httpd` is how RHEL based distros refer to the Apache web server
+- `-y` is a flag that automatically sends "yes" to yes/no prompts
+
+The next two lines get the web server running.
+
+- `systemctl` is used to control services
+- `systemctl start` starts a service
+- `systemctl enable` sets a service to start upon boot
+
+And finally the last line sends some HTML code to the default site location for the web server software.
+
+- `echo` prints a string to the standard output
+- `$(hostname -f)` inserts the fqdn to the string
+- `>` redirects where the string goes (from stdout to the index.html)
+
+So all in all this bash script will update the EC2 instance's OS, install Apache, start Apache and set it to start on boot, then create a simple HTML document containing the fully qualified domain name of the EC2 instance.
+
+</details>
+
+---
+
+### 6 - Security Groups
+
+Finally, we need to allow traffic to pass through our load balancer. This is done by applying security groups to the various services.
+
+Let's start by creating `security-groups.tf` and adding the SG for the load balancer:
+
+```hcl
+resource "aws_security_group" "<lbsg-name-here>" {
+  name   = "<lbsg-name-here>"
+  vpc_id = aws_vpc.<vpc-name-here>.id
+```
+Next we specify the ingress rules for permitting HTTP and HTTPS traffic. 
+
+```hcl
+  # Permit incoming HTTP
+  ingress {
+    description      = "Allow HTTP requests from all sources"
+    protocol         = "tcp"
+    from_port        = 80
+    to_port          = 80
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }1
+```
+
+```
+  # Permit incoming HTTP
+  ingress {
+    description      = "Allow HTTPS requests from all sources"
+    protocol         = "tcp"
+    from_port        = 443
+    to_port          = 443
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+```
+
+```hcl
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+}
+```
