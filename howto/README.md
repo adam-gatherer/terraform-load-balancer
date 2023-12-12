@@ -1,4 +1,4 @@
-# How It's Made
+# AWS Terraform Load Balancer
 
 ### About
 
@@ -11,6 +11,8 @@ This guide assumes you have already [installed](https://docs.aws.amazon.com/cli/
     - [Public/private networking](https://simple.wikipedia.org/wiki/IP_address)
     - [Subnets](https://www.dummies.com/article/technology/information-technology/networking/general-networking/network-administration-subnet-basics-184551/)
     - [Routing](https://www.dummies.com/article/technology/information-technology/networking/general-networking/network-basics-routers-185331/)
+    - [NAT](https://www.computernetworkingnotes.com/ccna-study-guide/basic-concepts-of-nat-explained-in-easy-language.html)
+    - [Network Ports](https://simple.wikipedia.org/wiki/Network_port)
 - AWS
     - [EC2 basics](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/concepts.html)
     - [Elastic Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html)
@@ -98,8 +100,8 @@ resource "aws_subnet" "<subnet1-name-here>" {
 Note that the subnet size is smaller (this is a subnet of the VPC subnet) and that `map_public_ip_on_launch` is set to `true` as this subnet is to be public. Add the second subnet code block changing the details where appropriate. See if you can figure it out on your own using your networking knowledge.
 
 <details>
-<summary>(only click here if you're really stuck)</summary>
-
+<summary>(only click here if you're really stuck)</summary>  
+  
 The second subnet starts after the end of the first subnet. The mask is a /27 which gives us 32 addresses. Starting at address 0, the next subnet begins at 10.0.0.32. The subnet name is different to the first subnet and `map_public_ip_on_launch` is set to `true`.
 ```hcl
 resource "aws_subnet" "<subnet2-name-here>" {
@@ -108,7 +110,8 @@ resource "aws_subnet" "<subnet2-name-here>" {
   map_public_ip_on_launch = true
   availability_zone       = "<your-region-here>"
 }
-```
+```  
+  
 
 Hopefull you're just here checking your work, if not then never mind champ you'll get it next time. I believe in you.
 </details>
@@ -148,7 +151,8 @@ resource "aws_route_table" "<rt1-name-here>" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.<gw1-name-here>.id
   }
-}```
+}
+```
 
 The gateway and route table are looking very nice but won't do anything until the table is attached to a subnet. The following code block associates the route table to our first public subnet:
 
@@ -174,4 +178,113 @@ resource "aws_route_table_association" "<rta2-name-here>" {
 
 #### 3.2 - Private Gateway
 
-Pretty much the same as before, but with a few differences.
+Similar to the public gateway but set up to only allow requests from the load balancer to reach the EC2 instances whilst allowing all traffic from them to pass out. This is done with a NAT gateway. The gateway sits between the public subnet with internet access (created in the previous step) and the private subnet.
+
+To access the internet, the gateway will need an elastic IP:
+
+```hcl
+resource "aws_eip" "<eip-name-here>" {
+  depends_on = [aws_internet_gateway.<gw1-name-here>]
+  vpc        = true
+  tags = {
+    Name = "<eip-name-here>"
+  }
+}
+```
+
+Note the use of `depends_on` - this means the EIP won't be created until after the referenced gateway is created. Can't assign an IP address to nothing. We'll be seeing it again.
+
+The NAT gateway also `depends_on` the internet gateway existing:
+
+```hcl
+resource "aws_nat_gateway" "<natgw-name-here>" {
+  allocation_id = aws_eip.<eip-name-here>.id
+  subnet_id     = aws_subnet.<subnet1-name-here>.id
+  tags = {
+    Name = "<natgw-name-here>"
+  }
+  depends_on = [aws_internet_gateway.<gw1-name-here>]
+}
+```
+
+We'll need a route table for the private subnet to connect out to the internet. This is done by providing a route to 0.0.0.0/0, which will match all destination IP addresses and act as a default route. 
+
+```hcl
+resource "aws_route_table" "<rt2-name-here>" {
+  vpc_id = aws_vpc.<vpc-name-here>.id
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.<natgw-name-here>.id
+  }
+}
+```
+
+And finally, the route table will need associated with the private subnet. You know what to do here.
+
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+```hcl
+resource "aws_route_table_association" "<rta3-name-here>" {
+  subnet_id      = aws_subnet.<subnet3-name-here>.id
+  route_table_id = aws_route_table.<rt2-name-here>.id
+}
+```
+As before, we create the route table association resource then specify that our NAT gateway route table is going into our private subnet.
+
+</details>
+
+---
+
+### 4 - Load Balancer
+
+The load balancer will balance traffic between all targets in the target group. Because we're balancing traffic for specific port numbers we'll use an application laod balancer. Start by setting up the LB itself:
+
+```hcl
+resource "aws_lb" "<lb-name-here>" {
+  name               = "<lb-name-here>"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.<lbsg-name-here>.id]
+  subnets            = [aws_subnet.<subnet1-name-here>.id, aws_subnet.<subnet2-name-here>.id]
+  depends_on         = [aws_internet_gateway.<gw1-name-here>]
+}
+```
+
+The security group that governs the LB has not been created yet (we'll handle security later). Note the subnets the LB is a member of and what it `depends_on` being created first.
+
+The target group is set up to operate on port 80. I've left the protocol name out, let's see if you can figure out what four letter protocol runs on port 80.
+
+```hcl
+resource "aws_lb_target_group" "<tg-name-here>" {
+  name     = "<tg-name-here>"
+  port     = 80
+  protocol = "<omitted-to-make-you-think>"
+  vpc_id   = aws_vpc.<vpc-name-here>.id
+}
+```
+
+And to listen for traffic coming in, the LB needs a listener. It'd be easy if I gave you the protocol here after asking for it earlier but we don't do things because they are easy. The listener needs some actions to do, in this case we want it to forward traffic from port 80 to the target group we defined earlier.
+
+```hcl
+resource "aws_lb_listener" "<lbl-name-here>" {
+  load_balancer_arn = aws_lb.<lb-name-here>.arn
+  port              = "80"
+  protocol          = "<omitted-to-make-you-think>"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.<tg-name-here>.arn
+  }
+}
+```
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+Port 80 is used by the HTTP protocol. You should know this already if you're going to start learning cloud engineering.
+
+</details>
+
+---
+
+### 5 - Auto Scaling
+
