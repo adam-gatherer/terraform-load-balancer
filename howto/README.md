@@ -1,11 +1,11 @@
 # AWS Terraform Load Balancer
 
-### About
+## About
 
 This guide assumes you have already [installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.htm) the AWS CLI and have [Terraform installed on your computer](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli). Throughout the guide are code snippets from the files in this project. To keep you on your toes they require you to input your resource names etc. No brainless copy/paste allowed.
 
 ---
-### 0 - Prerequisite Knowledge
+## 0 - Prerequisite Knowledge
 
 - Networking
     - [Public/private networking](https://simple.wikipedia.org/wiki/IP_address)
@@ -27,7 +27,7 @@ This guide assumes you have already [installed](https://docs.aws.amazon.com/cli/
 
 ---
 
-### 1 - Project Setup
+## 1 - Project Setup
 
 After creating the project's root directory create the `main.tf` file and add the provider for AWS:
 
@@ -70,7 +70,7 @@ With your state file safely locked away from prying eyes, go ahead and run `terr
 
 ---
 
-### 2 - Configuring The VPC & Subnets
+## 2 - Configuring The VPC & Subnets
 
 The project requires a VPC with two public subnets and one private subnet. This is covered in the "Architecture" section of the repo's [readme](../README.md).
 
@@ -128,11 +128,11 @@ resource "aws_subnet" "<subnet3-name-here>" {
 ```
 ---
 
-### 3 - NAT Gateway & Route Tables
+## 3 - NAT Gateway & Route Tables
 
 I've split this part into two files, `gateways-public.tf` and `gateways-private.tf`. Let's start with setting up the public gateway. This will allow the load balancer to communicate on the public internet so users can access the services and resources behind it.
 
-#### 3.1 - Public Gateway
+### 3.1 - Public Gateway
 
 Create `gateways-public.tf`, define the Internet Gateway, and place it in the VPC we created in the previous step:
 
@@ -176,7 +176,7 @@ resource "aws_route_table_association" "<rta2-name-here>" {
 ```
 </details>
 
-#### 3.2 - Private Gateway
+### 3.2 - Private Gateway
 
 Similar to the public gateway but set up to only allow requests from the load balancer to reach the EC2 instances whilst allowing all traffic from them to pass out. This is done with a NAT gateway. The gateway sits between the public subnet with internet access (created in the previous step) and the private subnet.
 
@@ -236,7 +236,7 @@ As before, we create the route table association resource then specify that our 
 
 ---
 
-### 4 - Load Balancer
+## 4 - Load Balancer
 
 The load balancer (LB) will balance traffic between all targets in the target group. Because we're balancing traffic for specific port numbers we'll use an application laod balancer. Start by setting up `load-balancer.tf`:
 
@@ -286,10 +286,11 @@ Port 80 is used by the HTTP protocol. You should know this already if you're goi
 
 ---
 
-### 5 - Auto Scaling
-#### 5.1 - ASG & Launch Template
+## 5 - Auto Scaling
 
 In this step we'll create an auto scaling group (ASG) to create the EC2 instances. To configure the EC2s we'll use a launch template.
+
+### 5.1 - ASG & Launch Template
 
 Starting with the ASG we give it a `min_size` to specify the number of EC2s for periods of low demand, `max_size` to give the maximum number of EC2s to provision, and the `desired_capacity` specifies the ideal number of EC2s to aim for. Be careful, as `max_size` can and will bankrupt you if you set it above your budget. This guide assumes you're using the free tier so we'll keep it low.
 
@@ -339,7 +340,8 @@ The rest of the resource block contains the network interface information and a 
   }
 }
 ```
-#### 5.2 - User Data
+
+### 5.2 - User Data
 
 The `user_data` referenced should be in the same directory as the `.tf` files. It's a bash script that will run on the EC2 instances when they're created. With this project we're just running a web server for demonstration purposes, so in production this user data will likely be more interesting.
 
@@ -385,9 +387,11 @@ So all in all this bash script will update the EC2 instance's OS, install Apache
 
 ---
 
-### 6 - Security Groups
+## 6 - Security Groups
 
 Finally, we need to allow traffic to pass through our load balancer. This is done by applying security groups to the various services.
+
+### 6.1 - Security Group for ELB
 
 Let's start by creating `security-groups.tf` and adding the SG for the load balancer:
 
@@ -396,10 +400,9 @@ resource "aws_security_group" "<lbsg-name-here>" {
   name   = "<lbsg-name-here>"
   vpc_id = aws_vpc.<vpc-name-here>.id
 ```
-Next we specify the ingress rules for permitting HTTP and HTTPS traffic. 
+Next we specify the ingress rules for permitting HTTP and HTTPS traffic. Note that the IP address range matches for CIDR block 0.0.0.0/0.
 
 ```hcl
-  # Permit incoming HTTP
   ingress {
     description      = "Allow HTTP requests from all sources"
     protocol         = "tcp"
@@ -407,20 +410,31 @@ Next we specify the ingress rules for permitting HTTP and HTTPS traffic.
     to_port          = 80
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
-  }1
+  }
 ```
 
+As before, I've omitted the port number to get the noggin' joggin'. We specify the rule for a range of port numbers, but in this case we only want to target HTTPS traffic so the `from_port` and `to_port` will be the same value.
+
 ```
-  # Permit incoming HTTP
   ingress {
     description      = "Allow HTTPS requests from all sources"
     protocol         = "tcp"
-    from_port        = 443
-    to_port          = 443
+    from_port        = <port-number-here>
+    to_port          = <port-number-here>
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
 ```
+
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+Port 443 is used for HTTPS.
+
+</details>
+
+And to close the block off add the egress rule. As we wish to permit all traffic out, the rule's port range is 0 to 0. and the protocol is set to `-1` - this is semantically equivalent to _all_ protocols.
+
 
 ```hcl
   egress {
@@ -432,3 +446,81 @@ Next we specify the ingress rules for permitting HTTP and HTTPS traffic.
 
 }
 ```
+
+### 6.2 - Security Group for EC2
+
+In the same file (or in a separate file, I've grouped them together for convenience) add another security group resource block for the EC2 instances.
+
+```hcl
+resource "aws_security_group" "<ec2sg-name-here>" {
+  name   = "<ec2sg-name-here>"
+  vpc_id = aws_vpc.<vpc-name-here>.id
+```
+
+As you'll have noticed this block starts the same as the previous block for the ELB. The ingress and egress rules are going to be almost entirely the same, but with the ingress rule having a list of security groups provided as a source of traffic. This list consists of one entry: the ELB security group we made in the previous section.
+
+```hcl
+  ingress {
+    description     = "Allow HTTP requests from the Load Balancer"
+    protocol        = "tcp"
+    from_port       = 80
+    to_port         = 80
+    security_groups = [aws_security_group.<lbsg-name-here>.id]
+  }
+```
+
+And finally, to allow traffic out we add an egress block as before. Specify all protocols and match all IP addresses. You know what to do. And if not...
+
+
+<details>
+<summary>(only click here if you're really stuck)</summary>
+
+```
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+```
+
+As `protocol` is set to `-1`, the `from_port` and `to_port` must be set to 0.
+
+</details>
+
+---
+
+## 7 - Deploying & Troubleshooting
+
+### 7.1 - Terraform
+
+And now our project is ready to roll. Run `terraform init` to install the required providers if you haven't already, then run `terraform plan` to check the changes to be made. If everything has been configured correctly there should be no error messages. From here we have a few options.
+
+- `terraform fmt` will format the files to the Terraform standards (whilst the code _will_ run if only syntactically correct, we do not work in isolation and others must be able to read our code - for this reason we should adhere to the Terraform formatting)
+- `terraform validate` will check the syntax of the configuration files in the project
+- `terraform apply` means it's Go Time: Terraform will convert the configuration files to API requests and build our infrastructures on the AWS cloud
+
+
+### 7.2 - Testing
+
+First, let's recap by taking an overview of what this project does.
+From server to client:
+-  our EC2 instance(s) is(/are) deploying with Apache and a simple web page that has the name of the instance upon which it is running
+- to reach the web page, user's requests go through the load balancer
+- the load balancer selects an EC2 instance from the target group to which the traffic shall be passed
+- the user traffic reaches the load balancer from its DNS name, which can be found via the AWS console or CLI (`aws elb describe-load-balancers --load-balancer-name <elb-name-here>`)
+- depending on workload, the ASG will create more or fewer EC2 instances to populate the target group the through which the load balancer will share traffic
+
+In effect, this means we can see which EC2 instance we've reached when we reload the page. 
+
+### 7.3 - Troubleshooting
+
+There's rarely a one-size-fits-all way to write troubleshooting for projects, so here are some general tips that helped me.
+
+- Each piece of this project has a place it fits and other pieces it interacts with. Make sure your pieces are in the right place and are connected to the right parts.
+- Understanding what each part does is a massive help. Even if it's just a vague overview it makes it so that you're not blindly trying to figure out what's going wrong with something totally alien.
+- Check your syntax, check your formatting, check spelling mistakes and typos, check IP addresses and other numerical values are correct.
+- Don't think of error messages as locks for which you need to find a key. Error messages are puzzles with hints on how to solve them. Try to understand what error messages mean, combine this with understanding what each piece connects to and how it works to make troubleshooting a breeze.
+- Take things slowly and think through the code as though one step at a time. What is each part doing and why?
+- When in doubt, Google search your query in simple terms. If you don't understand that, ask others for help via forums or online chat groups. Learn how to ask a Really Good Question. 
