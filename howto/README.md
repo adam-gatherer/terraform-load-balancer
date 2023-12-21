@@ -507,7 +507,7 @@ And now our project is ready to roll. Run `terraform init` to install the requir
 
 First, let's recap by taking an overview of what this project does.
 From server to client:
--  our EC2 instance(s) is(/are) deploying with Apache and a simple web page that has the name of the instance upon which it is running
+-  our EC2 instance(s) is(/are) deploying with Apache and a simple web page that has the fully qualified domain name of the instance upon which it is running
 - to reach the web page, user's requests go through the load balancer
 - the load balancer selects an EC2 instance from the target group to which the traffic shall be passed
 - the user traffic reaches the load balancer from its DNS name, which can be found via the AWS console or CLI (`aws elb describe-load-balancers --load-balancer-name <elb-name-here>`)
